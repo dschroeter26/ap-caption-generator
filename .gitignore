@@ -1,0 +1,7 @@
+/node_modules
+/data
+/model/output
+*.log
+*.tmp
+*.h5
+.DS_Store
