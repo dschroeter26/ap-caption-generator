@@ -49,3 +49,17 @@ for i, data in enumerate(test_data):
     print(f"Input {i + 1}: {data['text']}")
     generated_caption = generate_caption(model, processor, data['text'], data['image_path'])
     print(f"Generated Caption {i + 1}: {generated_caption}")
+
+# Save the trained processor and model
+output_dir = Path('./output')
+
+# Ensure the output directory exists
+output_dir.mkdir(parents=True, exist_ok=True)
+
+# Save the processor
+processor.save_pretrained(output_dir)
+
+# Save the model
+model.save_pretrained(output_dir)
+
+print(f"Model and processor saved to {output_dir}")
