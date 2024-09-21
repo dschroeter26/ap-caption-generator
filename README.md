@@ -53,7 +53,7 @@ The **AP Caption Generator Project** is a machine learning-based tool that gener
 4. **Preprocess Data**:
    - Prepare the data for training by running:
      ```bash
-     python preprocess_data.py
+     python prepare_data.py
      ```
 
 5. **Train the Model**:

@@ -1,24 +1,51 @@
 import pandas as pd
-from transformers import GPT2Tokenizer, GPT2LMHeadModel
+from transformers import BlipProcessor, BlipForConditionalGeneration
+from PIL import Image
+import torch
+from pathlib import Path
 
-# Load tokenizer and model
-tokenizer = GPT2Tokenizer.from_pretrained('./../output')
-model = GPT2LMHeadModel.from_pretrained('./../output')
+# Define image folder path using pathlib
+image_folder = Path('./../data/images/')
 
-def generate_caption(model, tokenizer, input_text, max_length=50):
-    inputs = tokenizer.encode(input_text, return_tensors="pt", max_length=512, truncation=True)
-    outputs = model.generate(inputs, max_length=max_length, num_return_sequences=1)
-    caption = tokenizer.decode(outputs[0], skip_special_tokens=True)
+# Load BLIP processor and model
+processor = BlipProcessor.from_pretrained('Salesforce/blip-image-captioning-base')
+model = BlipForConditionalGeneration.from_pretrained('Salesforce/blip-image-captioning-base')
+
+# Function to preprocess images
+def preprocess_image(image_path):
+    image_path = Path(image_path)  # Ensure it's a Path object
+    if image_path.exists():
+        img = Image.open(image_path).convert('RGB')  # Ensure image is in RGB format
+        return img
+    else:
+        print(f"Image not found: {image_path}")
+        return None
+
+# Function to generate caption using BLIP
+def generate_caption(model, processor, input_text, image_path=None, max_length=50):
+    # Preprocess the image
+    if image_path:
+        image = preprocess_image(image_path)
+    else:
+        image = None
+
+    # Tokenize input text and preprocess image together
+    inputs = processor(images=image, text=input_text, return_tensors="pt", padding=True)
+
+    # Generate caption from the model
+    outputs = model.generate(**inputs, max_length=max_length, num_return_sequences=1)
+    caption = processor.decode(outputs[0], skip_special_tokens=True)
+    
     return caption
 
 # Example testing with new data
 test_data = [
-    "A U.S. Army soldier prepares for deployment.",
-    "The Navy celebrates Fleet Week in New York City."
+    {"text": "A U.S. Army soldier prepares for deployment.", "image_path": "./../data/images/8652204_360x255_q95.jpg"},
+    {"text": "The Navy celebrates Fleet Week in New York City.", "image_path": "./../data/images/8652139_360x255_q95.jpg"}
 ]
 
 # Generate captions for new data
-for i, text in enumerate(test_data):
-    print(f"Input {i + 1}: {text}")
-    generated_caption = generate_caption(model, tokenizer, text)
+for i, data in enumerate(test_data):
+    print(f"Input {i + 1}: {data['text']}")
+    generated_caption = generate_caption(model, processor, data['text'], data['image_path'])
     print(f"Generated Caption {i + 1}: {generated_caption}")

@@ -1,72 +1,51 @@
 import pandas as pd
-from transformers import GPT2Tokenizer, GPT2LMHeadModel, Trainer, TrainingArguments
+from transformers import BlipProcessor, BlipForConditionalGeneration
+from PIL import Image
 import torch
-from torch.utils.data import Dataset
+from pathlib import Path
 
-class CaptionDataset(Dataset):
-    def __init__(self, encodings):
-        self.encodings = encodings
+# Define image folder path using pathlib
+image_folder = Path('./../data/images/')
 
-    def __getitem__(self, idx):
-        return {key: torch.tensor(val[idx]) for key, val in self.encodings.items()}
+# Load BLIP processor and model
+processor = BlipProcessor.from_pretrained('Salesforce/blip-image-captioning-base')
+model = BlipForConditionalGeneration.from_pretrained('Salesforce/blip-image-captioning-base')
 
-    def __len__(self):
-        return len(self.encodings.input_ids)
+# Function to preprocess images
+def preprocess_image(image_path):
+    image_path = Path(image_path)  # Ensure it's a Path object
+    if image_path.exists():
+        img = Image.open(image_path).convert('RGB')  # Ensure image is in RGB format
+        return img
+    else:
+        print(f"Image not found: {image_path}")
+        return None
 
-# Load GPT-2 tokenizer and model
-tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-model = GPT2LMHeadModel.from_pretrained('gpt2')
+# Function to generate caption using BLIP
+def generate_caption(model, processor, input_text, image_path=None, max_length=50):
+    # Preprocess the image
+    if image_path:
+        image = preprocess_image(image_path)
+    else:
+        image = None
 
-# Add padding token to tokenizer
-tokenizer.pad_token = tokenizer.eos_token
+    # Tokenize input text and preprocess image together
+    inputs = processor(images=image, text=input_text, return_tensors="pt", padding=True)
 
-# Load dataset
-train_df = pd.read_csv('./../data/train_data.csv')
-val_df = pd.read_csv('./../data/val_data.csv')
+    # Generate caption from the model
+    outputs = model.generate(**inputs, max_length=max_length, num_return_sequences=1)
+    caption = processor.decode(outputs[0], skip_special_tokens=True)
+    
+    return caption
 
-# Tokenize dataset and add labels for loss calculation
-train_encodings = tokenizer(
-    list(train_df['caption']),
-    truncation=True,
-    padding=True,
-    max_length=512
-)
-train_encodings['labels'] = train_encodings['input_ids'].copy()
+# Example testing with new data
+test_data = [
+    {"text": "A U.S. Army soldier prepares for deployment.", "image_path": "./../data/images/8652204_360x255_q95.jpg"},
+    {"text": "The Navy celebrates Fleet Week in New York City.", "image_path": "./../data/images/8652139_360x255_q95.jpg"}
+]
 
-val_encodings = tokenizer(
-    list(val_df['caption']),
-    truncation=True,
-    padding=True,
-    max_length=512
-)
-val_encodings['labels'] = val_encodings['input_ids'].copy()
-
-# Prepare datasets
-train_dataset = CaptionDataset(train_encodings)
-val_dataset = CaptionDataset(val_encodings)
-
-# Set up training arguments
-training_args = TrainingArguments(
-    output_dir='./output',
-    num_train_epochs=3,
-    per_device_train_batch_size=4,
-    per_device_eval_batch_size=4,
-    evaluation_strategy='epoch',
-    logging_dir='./logs',
-    logging_steps=10,
-)
-
-# Initialize Trainer
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    train_dataset=train_dataset,
-    eval_dataset=val_dataset
-)
-
-# Train the model
-trainer.train()
-
-# Save the model
-model.save_pretrained('./output')
-tokenizer.save_pretrained('./output')
+# Generate captions for new data
+for i, data in enumerate(test_data):
+    print(f"Input {i + 1}: {data['text']}")
+    generated_caption = generate_caption(model, processor, data['text'], data['image_path'])
+    print(f"Generated Caption {i + 1}: {generated_caption}")
